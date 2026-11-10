@@ -1,0 +1,34 @@
+name: mini_mitm_proxy
+description: Mini MITM Proxy - frontend Flutter (tampilan gaya ArsipDokumenPU), backend FastAPI.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  window_manager: ^0.4.3      # title bar sendiri + kontrol jendela + full screen
+  tray_manager: ^0.3.2        # ikon di system tray (pojok kanan bawah)
+  http: ^1.2.2                # REST ke backend FastAPI
+  web_socket_channel: ^3.0.1  # aliran lalu lintas langsung (WebSocket)
+  url_launcher: ^6.3.0        # buka unduhan sertifikat CA di browser
+  shared_preferences: ^2.3.2  # simpan pilihan tema
+
+dependency_overrides:
+  path_provider_android: 2.2.17
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/app_icon.ico
+    - assets/icons/app_icon.png
+  # Catatan: huruf Inter & PlusJakartaSans dari ArsipDokumenPU bisa kamu salin ke
+  # assets/fonts/ lalu daftarkan di sini agar tampilan sama persis. Tanpa itu,
+  # aplikasi tetap jalan memakai huruf fallback (Segoe UI).
