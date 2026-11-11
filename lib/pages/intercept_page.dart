@@ -345,12 +345,43 @@ class _InterceptPageState extends State<InterceptPage> with SingleTickerProvider
                 Switch(value: api.status['intercept_response'] == true, onChanged: (v) => api.putConfig({'intercept_response': v})),
               ]),
             ),
+            _scopeBanner(api),
             Expanded(flex: 3, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: _table(pending))),
             const SizedBox(height: 12),
             Expanded(flex: 4, child: Padding(padding: const EdgeInsets.fromLTRB(24, 0, 24, 24), child: _detail(sel, api))),
           ],
         );
       },
+    );
+  }
+
+  /// Peringatan saat Scope aktif: hanya host yang cocok yang ditahan, sisanya langsung lewat.
+  Widget _scopeBanner(Api api) {
+    final sc = (api.status['scope'] as Map?) ?? const {};
+    if (sc['enabled'] != true) return const SizedBox.shrink();
+    final inc = ((sc['include'] as List?) ?? const []).cast<String>();
+    final exc = ((sc['exclude'] as List?) ?? const []).cast<String>();
+    final parts = <String>[];
+    if (inc.isNotEmpty) parts.add('${tr('hanya', 'only')}: ${inc.join(', ')}');
+    if (exc.isNotEmpty) parts.add('${tr('kecuali', 'except')}: ${exc.join(', ')}');
+    final desc = parts.isEmpty ? tr('semua host', 'all hosts') : parts.join('  ·  ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(color: YmColors.warningSoft, borderRadius: BorderRadius.circular(10)),
+        child: Row(children: [
+          Icon(Icons.filter_alt_outlined, size: 18, color: YmColors.onWarningSoft),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${tr('Scope aktif', 'Scope on')} — ${tr('yang ditahan', 'held')} $desc. ${tr('Host lain langsung lewat ke History tanpa ditahan.', 'Other hosts pass straight to History.')}',
+              style: YmTextStyles.bodySm.copyWith(color: YmColors.onWarningSoft),
+            ),
+          ),
+          TextButton(onPressed: () => Nav.go('scope'), child: Text(tr('Ubah scope', 'Edit scope'))),
+        ]),
+      ),
     );
   }
 

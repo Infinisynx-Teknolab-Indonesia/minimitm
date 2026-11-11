@@ -54,7 +54,7 @@ class _ScopePageState extends State<ScopePage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(tr('Tambah pola host', 'Add host pattern')),
-        content: TextField(controller: c, autofocus: true, decoration: InputDecoration(hintText: tr('mis. fjbbatam.com atau api.', 'e.g. example.com or api.'))),
+        content: TextField(controller: c, autofocus: true, decoration: InputDecoration(hintText: tr('mis. united.com  atau  *united.com*  atau  *.united.com', 'e.g. united.com  or  *united.com*  or  *.united.com'))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Batal', 'Cancel'))),
           ElevatedButton(onPressed: () => Navigator.pop(context, c.text), child: Text(tr('Tambah', 'Add'))),
