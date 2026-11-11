@@ -223,21 +223,27 @@ class _ProxyPageState extends State<ProxyPage> {
               label: Text(tr('Unduh .pem', 'Download .pem')),
             ),
             OutlinedButton.icon(
+              onPressed: () => launchUrl(Uri.parse(api.caMobileconfigUrl()), mode: LaunchMode.externalApplication),
+              icon: const Icon(Icons.phone_iphone_rounded, size: 18),
+              label: Text(tr('Unduh profil iOS (.mobileconfig)', 'Download iOS profile (.mobileconfig)')),
+            ),
+            OutlinedButton.icon(
               onPressed: () => launchUrl(Uri.parse(api.caCrtUrl()), mode: LaunchMode.externalApplication),
               icon: const Icon(Icons.download_rounded, size: 18),
               label: Text(tr('Unduh .crt (Android/Windows)', 'Download .crt (Android/Windows)')),
             ),
           ]),
           const SizedBox(height: 12),
-          Text(tr('Dari HP, buka alamat ini di browser untuk mengunduh sertifikat:', 'On a phone, open this address in a browser to download the certificate:'), style: YmTextStyles.labelSm),
+          Text(tr('Dari HP (Safari untuk iPhone), buka alamat ini untuk memasang sertifikat. Tidak perlu atur proxy dulu:', 'From a phone (Safari on iPhone), open this address to install the certificate. No proxy setup needed:'), style: YmTextStyles.labelSm),
           const SizedBox(height: 6),
-          _copyRow('http://${_lanHint()}:${Api.instance.basePort}/api/ca.crt'),
+          _copyRow('http://${_ips.isNotEmpty ? _ips.first : tr('IP-PC-kamu', 'YOUR-PC-IP')}:${api.status['port'] ?? 8080}/'),
+          const SizedBox(height: 6),
+          Text(tr('Kalau proxy HP sudah diatur, alamat http://mitm.it juga bisa dipakai. Di iPhone, setelah memasang profil, aktifkan di Pengaturan → Umum → Info → Pengaturan Kepercayaan Sertifikat.',
+              'If the phone proxy is already set, http://mitm.it works too. On iPhone, after installing the profile, enable it in Settings → General → About → Certificate Trust Settings.'), style: YmTextStyles.bodySm),
         ],
       ),
     );
   }
-
-  String _lanHint() => Api.instance.baseHost == '127.0.0.1' ? tr('IP-PC-kamu', 'YOUR-PC-IP') : Api.instance.baseHost;
 
   Widget _copyRow(String text) {
     return Container(

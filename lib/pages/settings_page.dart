@@ -60,11 +60,20 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _fetchModels() async {
     await _saveAi();
-    final list = await Api.instance.aiModels();
+    if (mounted) setState(() => _aiMsg = tr('Mengambil daftar model…', 'Fetching models…'));
+    final res = await Api.instance.aiModelsResult();
     if (!mounted) return;
+    final list = (res['models'] as List).cast<String>();
     setState(() {
       _aiModelList = list;
-      _aiMsg = list.isEmpty ? tr('Tidak ada model / gateway tak terjangkau.', 'No models / gateway unreachable.') : '${list.length} ${tr('model ditemukan', 'models found')}';
+      if (res['ok'] == true && list.isNotEmpty) {
+        _aiMsg = '${list.length} ${tr('model ditemukan', 'models found')}';
+        if (_aiModel.text.trim().isEmpty) _aiModel.text = list.first;
+      } else if (res['ok'] == true) {
+        _aiMsg = tr('Terhubung, tapi gateway tidak mengembalikan daftar model.', 'Connected, but the gateway returned no models.');
+      } else {
+        _aiMsg = '${tr('Gagal', 'Failed')}: ${res['error'] ?? tr('gateway tak terjangkau', 'gateway unreachable')}';
+      }
     });
   }
 
@@ -285,7 +294,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 Row(children: [
                   ElevatedButton.icon(onPressed: _saveAi, icon: const Icon(Icons.save_outlined, size: 18), label: Text(tr('Simpan', 'Save'))),
                   const SizedBox(width: 12),
-                  if (_aiMsg.isNotEmpty) Expanded(child: Text(_aiMsg, style: YmTextStyles.bodySm.copyWith(color: YmColors.primary))),
+                  if (_aiMsg.isNotEmpty)
+                    Expanded(
+                      child: SelectableText(
+                        _aiMsg,
+                        style: YmTextStyles.bodySm.copyWith(
+                            color: (_aiMsg.startsWith('Gagal') || _aiMsg.startsWith('Failed')) ? YmColors.danger : YmColors.primary),
+                      ),
+                    ),
                 ]),
               ],
             ),

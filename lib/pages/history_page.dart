@@ -8,6 +8,7 @@ import '../widgets/ui.dart';
 import '../widgets/context_menu.dart';
 import '../widgets/ai_dialog.dart';
 import '../widgets/editor_menu.dart';
+import '../widgets/findable_view.dart';
 import 'repeater_page.dart';
 import 'intruder_page.dart';
 import 'comparer_page.dart';
@@ -286,27 +287,24 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Widget _msgView(Map<String, dynamic> d, String text) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(14),
-      child: SelectableText(
-        text,
-        style: YmTextStyles.mono,
-        contextMenuBuilder: editableMenu([
-          EditAction(tr('Tanya AI', 'Ask AI'), () => _openAi(d)),
-          EditAction(tr('Kirim ke Repeater', 'Send to Repeater'), () {
-            RepeaterInbox.send(d);
-            Nav.go('repeater');
-          }),
-          EditAction(tr('Kirim ke Intruder', 'Send to Intruder'), () {
-            IntruderInbox.send(d);
-            Nav.go('intruder');
-          }),
-          EditAction(tr('Kirim ke Comparer', 'Send to Comparer'), () {
-            ComparerInbox.send(text);
-            Nav.go('comparer');
-          }),
-        ]),
-      ),
+    return FindableView(
+      text: text,
+      readOnly: true,
+      contextMenuBuilder: editableMenu([
+        EditAction(tr('Tanya AI', 'Ask AI'), () => _openAi(d)),
+        EditAction(tr('Kirim ke Repeater', 'Send to Repeater'), () {
+          RepeaterInbox.send(d);
+          Nav.go('repeater');
+        }),
+        EditAction(tr('Kirim ke Intruder', 'Send to Intruder'), () {
+          IntruderInbox.send(d);
+          Nav.go('intruder');
+        }),
+        EditAction(tr('Kirim ke Comparer', 'Send to Comparer'), () {
+          ComparerInbox.send(text);
+          Nav.go('comparer');
+        }),
+      ]),
     );
   }
 }

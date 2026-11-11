@@ -67,6 +67,17 @@ class Api extends ChangeNotifier {
     _retry = Timer(const Duration(seconds: 2), connect);
   }
 
+  /// Sisipkan menurut nomor (id) menurun -> yang terbaru selalu di atas,
+  /// walau response-nya selesai tidak berurutan.
+  static void _insertByIdDesc(List<Map<String, dynamic>> list, Map<String, dynamic> item) {
+    final id = (item['id'] as num?)?.toInt() ?? 0;
+    int i = 0;
+    while (i < list.length && ((list[i]['id'] as num?)?.toInt() ?? 0) > id) {
+      i++;
+    }
+    list.insert(i, item);
+  }
+
   void _onMsg(dynamic raw) {
     try {
       final msg = jsonDecode(raw as String) as Map<String, dynamic>;
@@ -77,12 +88,18 @@ class Api extends ChangeNotifier {
           notifyListeners();
           break;
         case 'flow':
-          flows.insert(0, Map<String, dynamic>.from(msg['flow']));
+          _insertByIdDesc(flows, Map<String, dynamic>.from(msg['flow']));
           if (flows.length > 5000) flows.removeLast();
           _flowStream.add(null);
           break;
         case 'intercept':
-          pendingIntercept.add(Map<String, dynamic>.from(msg['request']));
+          _insertByIdDesc(pendingIntercept, Map<String, dynamic>.from(msg['request']));
+          _interceptStream.add(null);
+          notifyListeners();
+          break;
+        case 'intercept_released':
+          // dilepas otomatis oleh backend (switch intercept dimatikan / timeout)
+          pendingIntercept.removeWhere((e) => e['id'] == msg['id'] && (e['phase'] ?? 'request') == (msg['phase'] ?? 'request'));
           _interceptStream.add(null);
           notifyListeners();
           break;
@@ -303,6 +320,21 @@ class Api extends ChangeNotifier {
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
+  /// Seperti [aiModels] tapi mengembalikan juga pesan error dari backend.
+  Future<Map<String, dynamic>> aiModelsResult() async {
+    try {
+      final r = await http.get(Uri.parse('$_http/api/ai/models')).timeout(const Duration(seconds: 60));
+      final data = jsonDecode(r.body) as Map<String, dynamic>;
+      return {
+        'ok': data['ok'] == true,
+        'models': (data['models'] as List?)?.cast<String>() ?? <String>[],
+        'error': data['error'],
+      };
+    } catch (e) {
+      return {'ok': false, 'models': <String>[], 'error': '$e'};
+    }
+  }
+
   Future<List<String>> aiModels() async {
     try {
       final r = await http.get(Uri.parse('$_http/api/ai/models'));
@@ -415,4 +447,5 @@ class Api extends ChangeNotifier {
 
   String caPemUrl() => '$_http/api/ca.pem';
   String caCrtUrl() => '$_http/api/ca.crt';
+  String caMobileconfigUrl() => '$_http/api/ca.mobileconfig';
 }

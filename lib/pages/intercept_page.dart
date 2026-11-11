@@ -8,6 +8,7 @@ import '../widgets/ui.dart';
 import '../widgets/context_menu.dart';
 import '../widgets/ai_dialog.dart';
 import '../widgets/editor_menu.dart';
+import '../widgets/findable_view.dart';
 import 'repeater_page.dart';
 import 'intruder_page.dart';
 import 'comparer_page.dart';
@@ -23,8 +24,8 @@ class InterceptPage extends StatefulWidget {
 }
 
 class _InterceptPageState extends State<InterceptPage> with SingleTickerProviderStateMixin {
-  final _reqC = TextEditingController();
-  final _resC = TextEditingController();
+  final _reqC = HighlightController();
+  final _resC = HighlightController();
   late final TabController _tab = TabController(length: 2, vsync: this);
   String? _loadedKey; // "id:phase" yang sedang dimuat ke editor
   String? _selKey;
@@ -307,13 +308,24 @@ class _InterceptPageState extends State<InterceptPage> with SingleTickerProvider
       animation: Api.instance,
       builder: (context, _) {
         final api = Api.instance;
-        final pending = api.pendingIntercept;
+        final pending = [...api.pendingIntercept]
+          ..sort((a, b) => ((b['id'] as num?) ?? 0).compareTo((a['id'] as num?) ?? 0)); // terbaru di atas
         if (_selKey != null && !pending.any((e) => _key(e) == _selKey)) {
           _selKey = null;
           _loadedKey = null;
         }
-        if (_selKey == null && pending.isNotEmpty) _load(pending.first);
-        final sel = pending.where((e) => _key(e) == _selKey).cast<Map<String, dynamic>?>().firstWhere((_) => true, orElse: () => null);
+        // Jangan ubah controller / tab saat build -> jadwalkan setelah frame.
+        if (_selKey == null && pending.isNotEmpty) {
+          final first = pending.first;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (_selKey == null) setState(() => _load(first));
+          });
+        }
+        Map<String, dynamic>? sel;
+        for (final e in pending) {
+          if (_key(e) == _selKey) sel = e;
+        }
 
         return Column(
           children: [
@@ -417,15 +429,10 @@ class _InterceptPageState extends State<InterceptPage> with SingleTickerProvider
     );
   }
 
-  Widget _editor(TextEditingController c, Map<String, dynamic> r, {required bool onResponse, required bool readOnly}) {
-    return TextField(
+  Widget _editor(HighlightController c, Map<String, dynamic> r, {required bool onResponse, required bool readOnly}) {
+    return FindableView(
       controller: c,
       readOnly: readOnly,
-      expands: true,
-      maxLines: null,
-      textAlignVertical: TextAlignVertical.top,
-      style: YmTextStyles.mono,
-      decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(14)),
       contextMenuBuilder: editableMenu(_editorActions(r, onResponse: onResponse)),
     );
   }
