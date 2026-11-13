@@ -34,6 +34,17 @@ class _DashboardPageState extends State<DashboardPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (api.startError != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: const Color(0xFFFFE9E9), borderRadius: BorderRadius.circular(12)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.error_outline_rounded, color: Color(0xFFB3261E), size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(child: SelectableText(api.startError!, style: const TextStyle(color: Color(0xFF7A1410), fontSize: 13))),
+                  ]),
+                ),
               PageHeader(
                 crumbs: ['Mini MITM', tr('Dashboard', 'Dashboard')],
                 title: tr('Dashboard', 'Dashboard'),

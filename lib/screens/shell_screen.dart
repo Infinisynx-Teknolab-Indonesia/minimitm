@@ -4,6 +4,7 @@ import '../services/api.dart';
 import '../services/nav.dart';
 import '../services/i18n.dart';
 import '../widgets/ui.dart';
+import '../widgets/guide.dart';
 import '../pages/dashboard_page.dart';
 import '../pages/proxy_page.dart';
 import '../pages/history_page.dart';
@@ -13,6 +14,7 @@ import '../pages/scanner_page.dart';
 import '../pages/plugins_page.dart';
 import '../pages/intruder_page.dart';
 import '../pages/usb_page.dart';
+import '../pages/frida_page.dart';
 import '../pages/websocket_page.dart';
 import '../pages/decoder_page.dart';
 import '../pages/jwt_page.dart';
@@ -22,6 +24,11 @@ import '../pages/matchreplace_page.dart';
 import '../pages/comparer_page.dart';
 import '../pages/collaborator_page.dart';
 import '../pages/apk_page.dart';
+import '../pages/recon_page.dart';
+import '../pages/webscan_page.dart';
+import '../pages/spiderfoot_page.dart';
+import '../pages/email_login_page.dart';
+import '../pages/sms_page.dart';
 import '../pages/project_page.dart';
 import '../pages/settings_page.dart';
 
@@ -46,6 +53,7 @@ List<_NavEntry> get _entries => [
       _NavEntry('intercept', tr('Intercept', 'Intercept'), Icons.pan_tool_outlined, 'traffic'),
       _NavEntry('websocket', tr('WebSocket', 'WebSocket'), Icons.swap_horiz_rounded, 'traffic'),
       _NavEntry('usb', tr('USB (ADB)', 'USB (ADB)'), Icons.usb_rounded, 'traffic'),
+      _NavEntry('frida', 'Frida', Icons.bolt_outlined, 'traffic'),
       _NavEntry('scope', tr('Scope', 'Scope'), Icons.filter_alt_outlined, 'traffic'),
       _NavEntry('repeater', tr('Repeater', 'Repeater'), Icons.send_outlined, 'tools'),
       _NavEntry('intruder', tr('Intruder', 'Intruder'), Icons.rocket_launch_outlined, 'tools'),
@@ -58,6 +66,11 @@ List<_NavEntry> get _entries => [
       _NavEntry('jwt', tr('JWT', 'JWT'), Icons.vpn_key_outlined, 'tools'),
       _NavEntry('totp', tr('TOTP / OTP', 'TOTP / OTP'), Icons.timer_outlined, 'tools'),
       _NavEntry('apk', tr('APK Tools', 'APK Tools'), Icons.android_rounded, 'tools'),
+      _NavEntry('recon', tr('Recon (OSINT)', 'Recon (OSINT)'), Icons.travel_explore_rounded, 'tools'),
+      _NavEntry('webscan', tr('Cek Kelemahan Web', 'Web Vuln Scan'), Icons.bug_report_outlined, 'tools'),
+      _NavEntry('spiderfoot', 'SpiderFoot', Icons.hub_rounded, 'tools'),
+      _NavEntry('email', tr('Email Login', 'Email Login'), Icons.mark_email_unread_outlined, 'tools'),
+      _NavEntry('sms', tr('SMS Masuk', 'Inbound SMS'), Icons.sms_outlined, 'tools'),
       _NavEntry('project', tr('Project', 'Project'), Icons.folder_zip_outlined, 'account'),
       _NavEntry('settings', tr('Pengaturan', 'Settings'), Icons.settings_outlined, 'account'),
     ];
@@ -87,6 +100,15 @@ class _ShellScreenState extends State<ShellScreen> {
 
   void _onNav() => setState(() {});
 
+  // Bungkus tiap halaman dengan footer Panduan (muncul di semua menu).
+  Widget _withGuide(String id, Widget page) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: page),
+          GuideFooter(id: id),
+        ],
+      );
+
   Widget _build(String id) => switch (id) {
         'dashboard' => const DashboardPage(),
         'proxy' => const ProxyPage(),
@@ -94,6 +116,7 @@ class _ShellScreenState extends State<ShellScreen> {
         'intercept' => const InterceptPage(),
         'websocket' => const WebSocketPage(),
         'usb' => const UsbPage(),
+        'frida' => const FridaPage(),
         'scope' => const ScopePage(),
         'repeater' => const RepeaterPage(),
         'intruder' => const IntruderPage(),
@@ -106,6 +129,11 @@ class _ShellScreenState extends State<ShellScreen> {
         'jwt' => const JwtPage(),
         'totp' => const TotpPage(),
         'apk' => const ApkPage(),
+        'recon' => const ReconPage(),
+        'webscan' => const WebScanPage(),
+        'spiderfoot' => const SpiderFootPage(),
+        'email' => const EmailLoginPage(),
+        'sms' => const SmsPage(),
         'project' => const ProjectPage(),
         _ => const SettingsPage(),
       };
@@ -128,7 +156,7 @@ class _ShellScreenState extends State<ShellScreen> {
                   child: IndexedStack(
                     index: idx,
                     sizing: StackFit.expand,
-                    children: [for (final e in _entries) _build(e.id)],
+                    children: [for (final e in _entries) _withGuide(e.id, _build(e.id))],
                   ),
                 ),
               ],

@@ -16,6 +16,18 @@ class _ProxyPageState extends State<ProxyPage> {
   final _portC = TextEditingController(text: '8080');
   bool _allIfaces = true;
   bool _loaded = false;
+
+  // ---- Upstream gateway (default: DataImpulse residential proxy) ----
+  static const _defUpHost = 'gw.dataimpulse.com';
+  static const _defUpPort = '823';
+  static const _defUpUser = 'd1ecc32f41c57734996b';
+  static const _defUpPass = '31a104d8dc86d097';
+  bool _upEnabled = false;
+  bool _upShowPass = false;
+  final _upHostC = TextEditingController(text: _defUpHost);
+  final _upPortC = TextEditingController(text: _defUpPort);
+  final _upUserC = TextEditingController(text: _defUpUser);
+  final _upPassC = TextEditingController(text: _defUpPass);
   List<String> _ips = [];
   String _fwMsg = '';
 
@@ -30,6 +42,12 @@ class _ProxyPageState extends State<ProxyPage> {
       final cfg = await Api.instance.getConfig();
       _portC.text = '${cfg['listen_port'] ?? 8080}';
       _allIfaces = (cfg['listen_host'] ?? '0.0.0.0') == '0.0.0.0';
+      _upEnabled = cfg['upstream_enabled'] == true;
+      String pick(dynamic v, String d) => (v == null || '$v'.isEmpty) ? d : '$v';
+      _upHostC.text = pick(cfg['upstream_host'], _defUpHost);
+      _upPortC.text = pick(cfg['upstream_port'], _defUpPort);
+      _upUserC.text = pick(cfg['upstream_user'], _defUpUser);
+      _upPassC.text = pick(cfg['upstream_pass'], _defUpPass);
       final ni = await Api.instance.netInfo();
       _ips = ((ni['ips'] as List?) ?? []).cast<String>();
     } catch (_) {}
@@ -53,6 +71,86 @@ class _ProxyPageState extends State<ProxyPage> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Pengaturan proxy disimpan.', 'Proxy settings saved.'))));
   }
 
+  Future<void> _applyUpstream() async {
+    await Api.instance.putConfig({
+      'upstream_enabled': _upEnabled,
+      'upstream_host': _upHostC.text.trim(),
+      'upstream_port': int.tryParse(_upPortC.text.trim()) ?? 823,
+      'upstream_user': _upUserC.text.trim(),
+      'upstream_pass': _upPassC.text,
+    });
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Upstream gateway disimpan.', 'Upstream gateway saved.'))));
+  }
+
+  void _resetUpstream() => setState(() {
+        _upHostC.text = _defUpHost;
+        _upPortC.text = _defUpPort;
+        _upUserC.text = _defUpUser;
+        _upPassC.text = _defUpPass;
+      });
+
+  Widget _upField(String label, TextEditingController c, {bool pass = false, bool number = false, double? width}) {
+    final field = TextField(
+      controller: c,
+      enabled: _upEnabled,
+      obscureText: pass && !_upShowPass,
+      keyboardType: number ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(
+        suffixIcon: pass
+            ? IconButton(
+                icon: Icon(_upShowPass ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
+                onPressed: () => setState(() => _upShowPass = !_upShowPass),
+              )
+            : null,
+      ),
+    );
+    return SizedBox(
+      width: width ?? 240,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: YmTextStyles.labelSm),
+        const SizedBox(height: 6),
+        field,
+      ]),
+    );
+  }
+
+  Widget _upstreamCard() {
+    return HoverCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.alt_route_rounded, color: YmColors.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(tr('Upstream gateway (teruskan ke proxy lain)', 'Upstream gateway (forward to another proxy)'), style: YmTextStyles.headlineSm),
+          ]),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _upEnabled,
+            onChanged: (v) => setState(() => _upEnabled = v),
+            title: Text(tr('Aktifkan upstream', 'Enable upstream'), style: YmTextStyles.labelMd),
+            subtitle: Text(tr('Semua traffic diteruskan lewat proxy ini (mis. residential proxy).', 'All traffic is forwarded through this proxy (e.g. a residential proxy).'), style: YmTextStyles.bodySm),
+          ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 16, runSpacing: 12, children: [
+            _upField('Host', _upHostC),
+            _upField('Port', _upPortC, number: true, width: 140),
+            _upField(tr('User (opsional)', 'User (optional)'), _upUserC),
+            _upField(tr('Password (opsional)', 'Password (optional)'), _upPassC, pass: true),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: [
+            ElevatedButton.icon(onPressed: _applyUpstream, icon: const Icon(Icons.save_outlined, size: 18), label: Text(tr('Simpan upstream', 'Save upstream'))),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(onPressed: _upEnabled ? _resetUpstream : null, icon: const Icon(Icons.restart_alt_rounded, size: 18), label: Text(tr('Isi default', 'Fill defaults'))),
+          ]),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
@@ -65,6 +163,17 @@ class _ProxyPageState extends State<ProxyPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (api.startError != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: const Color(0xFFFFE9E9), borderRadius: BorderRadius.circular(12)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.error_outline_rounded, color: Color(0xFFB3261E), size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(child: SelectableText(api.startError!, style: const TextStyle(color: Color(0xFF7A1410), fontSize: 13))),
+                  ]),
+                ),
               PageHeader(
                 crumbs: ['Mini MITM', tr('Proxy', 'Proxy')],
                 title: tr('Proxy', 'Proxy'),
@@ -88,6 +197,8 @@ class _ProxyPageState extends State<ProxyPage> {
                   SizedBox(width: w, child: _certCard(api)),
                 ]);
               }),
+              const SizedBox(height: 16),
+              _upstreamCard(),
               const SizedBox(height: 16),
               _interceptCard(api),
               const SizedBox(height: 12),

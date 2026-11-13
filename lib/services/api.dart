@@ -129,8 +129,21 @@ class Api extends ChangeNotifier {
     return status;
   }
 
+  /// Pesan error terakhir saat "Mulai proxy" (null = tidak ada error).
+  String? startError;
+
   Future<void> start() async {
-    await http.post(Uri.parse('$_http/api/start'));
+    startError = null;
+    try {
+      final r = await http.post(Uri.parse('$_http/api/start')).timeout(const Duration(seconds: 10));
+      final j = jsonDecode(r.body);
+      if (j is Map && j['ok'] == false) {
+        startError = '${j['error'] ?? 'Gagal menjalankan proxy.'}';
+      }
+    } catch (e) {
+      startError = 'Backend (port $basePort) tidak merespons. Pastikan server Python berjalan: '
+          'jalankan "python run_server.py" di folder backend, atau cek log di Pengaturan.\n$e';
+    }
     await refreshStatus();
   }
 
@@ -284,6 +297,107 @@ class Api extends ChangeNotifier {
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
+  // ---- Mail Catcher (menu "Email Login") ----
+  Future<Map<String, dynamic>> mailStatus() async {
+    final r = await http.get(Uri.parse('$_http/api/mail/status'));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> mailStart({String host = '0.0.0.0', int port = 1025}) async {
+    final r = await http.post(Uri.parse('$_http/api/mail/start'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'host': host, 'port': port}));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> mailStop() async {
+    final r = await http.post(Uri.parse('$_http/api/mail/stop'));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> mailList({String to = ''}) async {
+    final uri = Uri.parse('$_http/api/mail/list').replace(queryParameters: {'to': to});
+    final r = await http.get(uri);
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> mailGet(int id) async {
+    final r = await http.get(Uri.parse('$_http/api/mail/get/$id'));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<void> mailClear() async {
+    await http.delete(Uri.parse('$_http/api/mail'));
+  }
+
+  String mailHtmlUrl(int id) => '$_http/api/mail/html/$id';
+
+  // ---- Login Email (IMAP) ----
+  Future<Map<String, dynamic>> imapDetect(String email) async {
+    final uri = Uri.parse('$_http/api/imap/detect').replace(queryParameters: {'email': email});
+    final r = await http.get(uri);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> imapFetch({
+    required String email,
+    required String password,
+    String? host,
+    int? port,
+    int limit = 15,
+    bool unseenOnly = false,
+    String mailbox = 'INBOX',
+    String proto = 'imap',   // 'imap' | 'pop3'
+    bool ssl = true,         // true = TLS implisit (993/995); false = plaintext/STARTTLS
+    bool starttls = false,   // kalau ssl=false, naikkan ke TLS (STARTTLS/STLS)
+  }) async {
+    final r = await http.post(Uri.parse('$_http/api/imap/fetch'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email, 'password': password, 'host': host, 'port': port,
+          'limit': limit, 'unseen_only': unseenOnly, 'mailbox': mailbox,
+          'proto': proto, 'ssl': ssl, 'starttls': starttls,
+        }));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  String imapHtmlUrl(int id) => '$_http/api/imap/html/$id';
+
+  // ---- SMS Catcher (menu "SMS Masuk") — webhook dari gateway/provider sendiri ----
+  Future<Map<String, dynamic>> smsStatus() async {
+    final r = await http.get(Uri.parse('$_http/api/sms/status'));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> smsSetRunning(bool running) async {
+    final r = await http.post(Uri.parse('$_http/api/sms/running'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'running': running}));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> smsSetToken(String token) async {
+    final r = await http.post(Uri.parse('$_http/api/sms/token'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'token': token}));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> smsList({String to = ''}) async {
+    final uri = Uri.parse('$_http/api/sms/list').replace(queryParameters: {'to': to});
+    final r = await http.get(uri);
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> smsClear() async {
+    await http.delete(Uri.parse('$_http/api/sms'));
+  }
+
+  /// URL webhook yang di-set di gateway/provider SMS milikmu (LAN / VPS).
+  String smsInboundUrl({String host = ''}) {
+    final h = host.trim().isEmpty ? baseHost : host.trim();
+    return 'http://$h:$basePort/api/sms/inbound';
+  }
+
   Future<List<Map<String, dynamic>>> totpDeleteAccount(String id) async {
     final r = await http.delete(Uri.parse('$_http/api/totp/accounts/$id'));
     return ((jsonDecode(r.body) as Map<String, dynamic>)['accounts'] as List).cast<Map<String, dynamic>>();
@@ -386,6 +500,82 @@ class Api extends ChangeNotifier {
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
+  /// Buka Settings > Trusted credentials > USER langsung di HP, supaya pengguna
+  /// bisa cek sendiri apakah CA MITM benar-benar aktif di sana.
+  Future<Map<String, dynamic>> adbOpenTrustedCredentials(String serial) async {
+    final r = await http.post(Uri.parse('$_http/api/adb/open-trusted-credentials'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'serial': serial}));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // ---- Frida (install frida-server + script) ----
+  Future<Map<String, dynamic>> fridaStatus(String serial) async {
+    final r = await http.get(Uri.parse('$_http/api/frida/status?serial=${Uri.encodeComponent(serial)}')).timeout(const Duration(seconds: 15));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fridaInstall(String serial) async {
+    final r = await http
+        .post(Uri.parse('$_http/api/frida/install'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'serial': serial}))
+        .timeout(const Duration(seconds: 120));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fridaStopServer(String serial) async {
+    final r = await http.post(Uri.parse('$_http/api/frida/stop-server'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'serial': serial}));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<List<String>> fridaPackages(String serial) async {
+    final r = await http.get(Uri.parse('$_http/api/frida/packages?serial=${Uri.encodeComponent(serial)}')).timeout(const Duration(seconds: 20));
+    final d = jsonDecode(r.body) as Map<String, dynamic>;
+    return (d['packages'] as List?)?.cast<String>() ?? <String>[];
+  }
+
+  Future<List<Map<String, dynamic>>> fridaScripts() async {
+    final r = await http.get(Uri.parse('$_http/api/frida/scripts'));
+    final d = jsonDecode(r.body) as Map<String, dynamic>;
+    return (d['scripts'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> fridaScriptRead(String name) async {
+    final r = await http.get(Uri.parse('$_http/api/frida/scripts/${Uri.encodeComponent(name)}'));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fridaScriptSave(String name, String content) async {
+    final r = await http.put(Uri.parse('$_http/api/frida/scripts/${Uri.encodeComponent(name)}'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'content': content}));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<void> fridaScriptDelete(String name) async {
+    await http.delete(Uri.parse('$_http/api/frida/scripts/${Uri.encodeComponent(name)}'));
+  }
+
+  Future<Map<String, dynamic>> fridaRun(String serial, String package, String script, {bool spawn = true}) async {
+    final r = await http.post(Uri.parse('$_http/api/frida/run'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'serial': serial, 'package': package, 'script': script, 'spawn': spawn}));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> fridaSessions() async {
+    final r = await http.get(Uri.parse('$_http/api/frida/sessions'));
+    final d = jsonDecode(r.body) as Map<String, dynamic>;
+    return (d['sessions'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> fridaSessionLog(String id, {int since = 0}) async {
+    final r = await http.get(Uri.parse('$_http/api/frida/sessions/$id/log?since=$since'));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fridaSessionStop(String id) async {
+    final r = await http.post(Uri.parse('$_http/api/frida/sessions/$id/stop'));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
   // ---- Collaborator (OOB) ----
   Future<Map<String, dynamic>> collabStatus() async {
     final r = await http.get(Uri.parse('$_http/api/collab/status'));
@@ -442,6 +632,119 @@ class Api extends ChangeNotifier {
   Future<Map<String, dynamic>> apkJadx(String apk) async {
     final r = await http.post(Uri.parse('$_http/api/apk/jadx'),
         headers: {'Content-Type': 'application/json'}, body: jsonEncode({'apk': apk})).timeout(const Duration(minutes: 10));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Unduh apktool, jadx, uber-apk-signer (GitHub resmi) + pasang reflutter (pip).
+  /// Tak butuh Android SDK; hanya butuh Java sudah ada.
+  Future<Map<String, dynamic>> apkInstallTools() async {
+    final r = await http.post(Uri.parse('$_http/api/apk/install-tools')).timeout(const Duration(minutes: 5));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Satu klik untuk app Flutter: reflutter (patch Dart/TLS) lalu tanda tangani hasilnya.
+  Future<Map<String, dynamic>> apkReflutter(String apk) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/reflutter'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'apk': apk})).timeout(const Duration(minutes: 10));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Pindai APK (tanpa decompile) untuk cari keystore, PEM key, JWT, API key, dsb.
+  Future<Map<String, dynamic>> apkSecrets(String apk) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/secrets'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'apk': apk})).timeout(const Duration(minutes: 5));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Suntik native lib (.so) ke folder hasil Decode -> recompile (apktool b) -> self-sign.
+  /// Untuk APK milikmu sendiri (mis. engine instrumentasi / frida-gadget).
+  Future<Map<String, dynamic>> apkInjectSo({
+    required String srcdir,
+    required List<String> soPaths,
+    String libName = '',
+    List<String> abis = const [],
+    bool addLoader = true,
+    bool trustCa = false,
+    String outdir = '',
+  }) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/inject-so'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'srcdir': srcdir, 'so_paths': soPaths, 'lib_name': libName,
+          'abis': abis, 'add_loader': addLoader, 'trust_ca': trustCa, 'outdir': outdir,
+        })).timeout(const Duration(minutes: 10));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Decode (apktool d): apk -> folder source (smali + res + AndroidManifest.xml).
+  Future<Map<String, dynamic>> apkDecode(String apk, {String outdir = ''}) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/decode'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'apk': apk, 'outdir': outdir})).timeout(const Duration(minutes: 10));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Tulis network_security_config (trust user CA) + debuggable di folder source,
+  /// TANPA build/sign -- langkah manual sebelum 'Build'.
+  Future<Map<String, dynamic>> apkPatchManifest(String srcdir) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/patch-manifest'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'srcdir': srcdir})).timeout(const Duration(minutes: 2));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// 'apktool b': folder source -> .apk belum ditandatangani.
+  Future<Map<String, dynamic>> apkBuild(String srcdir, {String outdir = ''}) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/build'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'srcdir': srcdir, 'outdir': outdir})).timeout(const Duration(minutes: 10));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Tanda tangani .apk (uber-apk-signer, atau zipalign+apksigner resmi sbg cadangan).
+  Future<Map<String, dynamic>> apkSign(String apk) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/sign'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'apk': apk})).timeout(const Duration(minutes: 5));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Pindai folder HASIL DECOMPILE (jadx/apktool) sbg teks sumber -- lebih reliabel utk
+  /// key bernama (mis. "HMAC key") daripada pemindaian ZIP mentah di apkSecrets().
+  Future<Map<String, dynamic>> apkSecretsDir(String dir) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/secrets-dir'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode({'dir': dir})).timeout(const Duration(minutes: 5));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Tab 4 "Cari dengan AI": AI menelusuri folder hasil decompile (lewat ranking file +
+  /// AI membaca potongan relevan -- bukan akses mandiri ke seluruh filesystem) utk
+  /// menjawab pertanyaan ttg lokasi data sensitif. Pakai AI yg diatur di Settings > AI.
+  Future<Map<String, dynamic>> apkAiSearch(String dir, String question) async {
+    final r = await http.post(Uri.parse('$_http/api/apk/ai-search'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'dir': dir, 'question': question})).timeout(const Duration(minutes: 5));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // ---- SpiderFoot (Docker: lokal/remote) ----
+  Future<Map<String, dynamic>> sfCall(String action, Map<String, dynamic> cfg) async {
+    final r = await http.post(Uri.parse('$_http/api/spiderfoot/$action'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode(cfg)).timeout(const Duration(minutes: 16));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // ---- Web Vuln Scanner (aktif) ----
+  Future<Map<String, dynamic>> webscanRun(String url, {String method = 'GET', String body = '', List<String> checks = const []}) async {
+    final r = await http.post(Uri.parse('$_http/api/webscan/run'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'url': url, 'method': method, 'body': body, 'checks': checks})).timeout(const Duration(minutes: 5));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // ---- Recon / OSINT passive (gaya SpiderFoot) ----
+  Future<Map<String, dynamic>> reconRun(String target, List<String> modules) async {
+    final r = await http.post(Uri.parse('$_http/api/recon/run'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'target': target, 'modules': modules})).timeout(const Duration(minutes: 3));
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 

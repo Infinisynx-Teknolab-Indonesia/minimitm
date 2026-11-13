@@ -89,6 +89,16 @@ class _UsbPageState extends State<UsbPage> {
     });
   }
 
+  Future<void> _openTrustedCredentials() async {
+    setState(() => _loading = true);
+    final r = await Api.instance.adbOpenTrustedCredentials(_serial ?? '');
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _msg = r['ok'] == true ? (r['out'] as String? ?? '') : '${tr('Gagal membuka', 'Failed to open')}: ${r['out'] ?? r['error']}';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasAdb = _resolved.isNotEmpty;
@@ -170,6 +180,7 @@ class _UsbPageState extends State<UsbPage> {
                 else
                   OutlinedButton.icon(onPressed: _loading ? null : _disable, icon: const Icon(Icons.usb_off_rounded, size: 18), label: Text(tr('Matikan USB', 'Disable USB'))),
                 OutlinedButton.icon(onPressed: _loading || _devices.isEmpty ? null : _pushCert, icon: const Icon(Icons.verified_user_outlined, size: 18), label: Text(tr('Kirim sertifikat ke HP', 'Send certificate to phone'))),
+                OutlinedButton.icon(onPressed: _loading || _devices.isEmpty ? null : _openTrustedCredentials, icon: const Icon(Icons.fact_check_outlined, size: 18), label: Text(tr('Cek status sertifikat di HP', 'Check certificate status on phone'))),
               ]),
               if (_loading) ...[const SizedBox(height: 12), Row(children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: YmColors.primary)), const SizedBox(width: 10), Text(tr('Memproses…', 'Working…'), style: YmTextStyles.bodySm)])],
               if (_msg.isNotEmpty) ...[
@@ -185,6 +196,30 @@ class _UsbPageState extends State<UsbPage> {
               Text(tr('Catatan: app yang mengabaikan proxy sistem (banyak Flutter) tetap tak tertangkap — itu butuh VPN/reFlutter, bukan sekadar USB.',
                   'Note: apps that ignore the system proxy (many Flutter apps) still aren\'t captured — that needs VPN/reFlutter, not just USB.'),
                   style: YmTextStyles.labelSm.copyWith(color: YmColors.outline)),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: YmColors.warningSoft.withOpacity(0.5), borderRadius: BorderRadius.circular(10)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.info_outline_rounded, size: 18, color: YmColors.onWarningSoft),
+                const SizedBox(width: 8),
+                Text(tr('Browser masih bilang "not private" padahal sertifikat sudah dipasang?', 'Browser still says "not private" even though the certificate is installed?'),
+                    style: YmTextStyles.labelMd.copyWith(color: YmColors.onWarningSoft, fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 8),
+              Text(tr(
+                  '1) Klik "Cek status sertifikat di HP" di atas, lalu pastikan sertifikat ini muncul & TERCENTANG di tab USER (bukan tab System).\n'
+                  '2) Saat memasang lewat "Install from storage", Android kadang menanyakan jenis penggunaan — pilih "VPN and apps", BUKAN "Wi-Fi" (pilihan Wi-Fi tidak dipakai untuk HTTPS browser/app).\n'
+                  '3) HP Samsung/Knox kadang MEMBLOKIR sertifikat CA kustom lewat kebijakan keamanan bawaan, walau install terlihat berhasil — ini bukan bug di app ini.\n'
+                  '4) Tutup total browser (bukan cuma minimize) lalu buka lagi setelah cek #1-3.',
+                  '1) Click "Check certificate status on phone" above, and make sure this certificate shows up & is CHECKED under the USER tab (not System).\n'
+                  '2) When installing via "Install from storage", Android sometimes asks the usage type — pick "VPN and apps", NOT "Wi-Fi" (Wi-Fi isn\'t used for browser/app HTTPS).\n'
+                  '3) Samsung/Knox phones sometimes BLOCK custom CA certs via a built-in security policy, even when install looks successful — this isn\'t a bug in this app.\n'
+                  '4) Fully close the browser (not just minimize) and reopen it after checking #1-3.'),
+                  style: YmTextStyles.labelSm.copyWith(color: YmColors.onWarningSoft)),
             ]),
           ),
         ],
